@@ -1,0 +1,338 @@
+---
+title: Effects of Severe Weather Events Across the US on the Population Health and
+  the Economy
+author: "Orumwese, Esosa Cyriaque"
+date: "6/8/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+# Synopsis
+This is the second course project for Reproducible Research course. In this project, the effects of severe weather events across the United States on the population health and the economy were studied. Data from the U.S. National Oceanic and Atmospheric Administration was analyzed using RStudio. In analyzing the health effect of events on the population, we looked at factors like number of fatalities and injuries. It was found that the top 3 events that cost the most fatalities and injuries were tornados, heat related events and wind related events. While, floods, storms and tornados caused the most economic damage when analysis was carried out using factors like cost of crop damage and cost of property damage.
+
+
+# Introduction
+Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern.
+
+This project involves exploring the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. This database tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage.
+
+
+# Data
+The data for this assignment come in the form of a comma-separated-value file compressed via the bzip2 algorithm to reduce its size. You can download the file from the course web site
+
+* [Storm Data](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2)[47Mb]
+
+There is also some documentation of the database available. Here you will find how some of the variables are constructed/defined.
+
+* National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
+* National Climate Data Center Storm Events [FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf)
+
+The events in the database start in the year 1950 and end in November 2011. In the earlier years of the database there are generally fewer events recorded, most likely due to a lack of good records. More recent years should be considered more complete.
+
+
+# Questions
+1. Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
+2. Across the United States, which types of events have the greatest economic consequences?
+
+
+# Data Processing
+A description of how the data was loaded into R and processed.
+
+### Loading required packages
+```{r,echo=TRUE}
+library(ggplot2)
+library(dplyr)
+library(data.table)
+```
+
+### Downloading and Loading the Data
+Downloading the file from the site using the Url and then reading the csv file and storing it as a variable, *StormData*.
+```{r, echo=TRUE}
+## Checking to see if the file is in the working directory
+if (!file.exists("StormData.csv.bz2") == TRUE){
+        Url <- 'https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2'
+        download.file(Url, destfile = paste(getwd(),"/StormData.csv.bz2",sep=""))
+}
+
+
+## Loading data
+StormData <- read.csv("StormData.csv.bz2", header = TRUE, sep = ",")
+```
+
+### Check Column Names
+An attempt to find out the columns that will be useful for this analysis.
+```{r,echo=TRUE}
+colnames(StormData)
+```
+
+### Subset the StormData
+We are only interested in the columns that affect population health and the economy. Therefore columns needed are;
+```{r,echo=TRUE}
+colnames(StormData[c(7,8,23:28)])
+```
+* "STATE": Two letter abbreviation of the state name.
+* "EVTYPE": The event type.
+* "FATALITIES": The number of fatalities recorded.
+* "INJURIES": The number of injured recorded.
+* "PROPDMG": The cost estimate of damage to property.
+* "PROPDMGEXP": Specifies whether the cost estimate of damage to property is in thousands(K), millions(M) or billions(B).
+* "CROPDMG": The cost estimate of damage to crops.
+* "CROPDMGEXP": Specifies whether the cost estimate of damage to crops is in thousands(K), millions(M) or billions(B).
+
+Subsetting the stormdata
+```{r,echo=TRUE}
+StormData.subst <- StormData[,c(7,8,23:28)]
+str(StormData.subst)
+```
+
+### Checking for missing data
+We want to make sure that our desired columns do not have missing values.
+```{r,echo=TRUE}
+## 'STATE' column
+sum(is.na(StormData.subst$STATE))
+```
+
+```{r,echo=TRUE}
+## 'EVTYPE' column
+sum(is.na(StormData.subst$EVTYPE))
+```
+
+```{r,echo=TRUE}
+## 'FATALITIES' column
+sum(is.na(StormData.subst$FATALITIES))
+```
+
+```{r,echo=TRUE}
+## 'INJURIES' column
+sum(is.na(StormData.subst$INJURIES))
+```
+
+```{r,echo=TRUE}
+## 'PROPDMG' column
+sum(is.na(StormData.subst$PROPDMG))
+```
+
+```{r,echo=TRUE}
+## 'PROPDMGEXP' column
+sum(is.na(StormData.subst$PROPDMGEXP))
+```
+
+```{r,echo=TRUE}
+## 'CROPDMG' column
+sum(is.na(StormData.subst$CROPDMG))
+```
+
+```{r,echo=TRUE}
+## 'CROPDMGEXP' column
+sum(is.na(StormData.subst$CROPDMGEXP))
+```
+
+### Addressing Duplicate Data Entries
+Grouping the events and looking at them, shows that some data entries have been wrongfully tagged (example 'TSTM WIND', 'THUNDERSTORM WIND', and 'THUNDERSTORM WINDS') and as such, it will affect the analysis.
+```{r,echo=TRUE}
+as.data.frame(sort(table(StormData.subst$EVTYPE),decreasing = TRUE)[1:15])
+```
+
+```{r,echo=TRUE,cache=TRUE}
+## Creating a new column in StormData.subst to house the Event grouping
+StormData.subst$EVENT <- "OTHERS"
+
+## Grouping according to keywords
+StormData.subst$EVENT[grep("hail",StormData.subst$EVTYPE,ignore.case = TRUE)] <- "HAIL"
+StormData.subst$EVENT[grep("wind",StormData.subst$EVTYPE,ignore.case = TRUE)] <- "WIND"
+StormData.subst$EVENT[grep("Storm",StormData.subst$EVTYPE,ignore.case = TRUE)] <- "STORM"
+StormData.subst$EVENT[grep("Tornado",StormData.subst$EVTYPE,ignore.case = TRUE)] <- "TORNADO"
+StormData.subst$EVENT[grep("Flood",StormData.subst$EVTYPE,ignore.case = TRUE)] <- "FLOOD"
+StormData.subst$EVENT[grep("Lightning",StormData.subst$EVTYPE,ignore.case = TRUE)] <- "LIGHTNING"
+StormData.subst$EVENT[grep("Heat",StormData.subst$EVTYPE,ignore.case = TRUE)] <- "HEAT"
+StormData.subst$EVENT[grep("Rain",StormData.subst$EVTYPE,ignore.case = TRUE)] <- "RAIN"
+StormData.subst$EVENT[grep("Snow",StormData.subst$EVTYPE,ignore.case = TRUE)] <- "SNOW"
+
+sort(table(StormData.subst$EVENT), decreasing = TRUE)
+```
+
+### Converting the PROPDMGEXP variables to numeric expressions
+```{r,echo=TRUE}
+## Finding the unique variables in "PROPDMGEXP" column
+sort(table(StormData.subst$PROPDMGEXP), decreasing = TRUE)
+```
+From the Storm Data documentation, the dollar magnitude signifiers are;
+ * "K" or "k refers to thousands (10^3)
+ * "M" or "m" refers to millions (10^6)
+ * "B" or "b" refers to billions (10^9)
+ * Others will be taken as their dollar amounts (10^0)
+ 
+```{r, PROPDMGEXP, echo=TRUE}
+StormData.subst$PROPDMGEXP[!grepl("K|M|B", StormData.subst$PROPDMGEXP, ignore.case = TRUE)] <- 10^0
+StormData.subst$PROPDMGEXP[grep("K", StormData.subst$PROPDMGEXP, ignore.case = TRUE)] <- 10^3
+StormData.subst$PROPDMGEXP[grep("M", StormData.subst$PROPDMGEXP, ignore.case = TRUE)] <- 10^6
+StormData.subst$PROPDMGEXP[grep("B", StormData.subst$PROPDMGEXP, ignore.case = TRUE)] <- 10^9
+
+## Changing class of PROPDMGEXP column to numeric
+StormData.subst$PROPDMGEXP <- as.numeric(StormData.subst$PROPDMGEXP)
+```
+
+
+### Creating a new column, PROP.EXPENSE.
+This column contains the estimated dollar amount of the expense due to Property Damage.
+```{r, echo=TRUE}
+## Creating a new column, 'PROP.EXPENSE'
+StormData.subst$PROP.EXPENSE <- StormData.subst$PROPDMG * StormData.subst$PROPDMGEXP
+```
+
+
+### Converting the CROPDMGEXP variables to numeric expressions
+```{r,echo=TRUE}
+## Finding the unique variables in "PROPDMGEXP" column
+sort(table(StormData.subst$CROPDMGEXP), decreasing = TRUE)
+```
+ 
+```{r, CROPDMGEXP, echo=TRUE}
+StormData.subst$CROPDMGEXP[!grepl("K|M|B", StormData.subst$CROPDMGEXP, ignore.case = TRUE)] <- 10^0
+StormData.subst$CROPDMGEXP[grep("K", StormData.subst$CROPDMGEXP, ignore.case = TRUE)] <- 10^3
+StormData.subst$CROPDMGEXP[grep("M", StormData.subst$CROPDMGEXP, ignore.case = TRUE)] <- 10^6
+StormData.subst$CROPDMGEXP[grep("B", StormData.subst$CROPDMGEXP, ignore.case = TRUE)] <- 10^9
+
+## Changing class of PROPDMGEXP column to numeric
+StormData.subst$CROPDMGEXP <- as.numeric(StormData.subst$CROPDMGEXP)
+```
+
+
+### Creating a new column, CROP.EXPENSE.
+This column contains the estimated dollar amount of the expense due to Crop Damage.
+```{r, echo=TRUE}
+## Creating a new column, 'CROP.EXPENSE'
+StormData.subst$CROP.EXPENSE <- StormData.subst$CROPDMG * StormData.subst$CROPDMGEXP
+```
+
+
+### Removing unnecessary columns from dataset
+This is to get the data set for plotting.
+```{r,echo=TRUE}
+StormData.Plot <- StormData.subst[c(1,9,3,4,10,11)]
+head(StormData.Plot)
+```
+
+
+# Analysis
+### Question 1
+```{r, echo=TRUE}
+plot.health <- StormData.Plot %>% group_by(EVENT) %>% summarise(FATALITIES=sum(FATALITIES),INJURIES=sum(INJURIES))
+
+## New column for total health effects per event
+plot.health$TOTAL.CASUALTIES <- plot.health$FATALITIES + plot.health$INJURIES
+
+## Ordering dataset in decreasing order of "TOTAL.CASUALTIES"
+plot.health <- plot.health[order(plot.health$TOTAL.CASUALTIES, decreasing = TRUE),]
+plot.health <- as.data.table(plot.health)
+plot.health
+```
+
+Melting plot.health in order to produce a clean table
+```{r, echo=TRUE}
+plot.health <- melt(plot.health, id.vars = "EVENT", measure.vars = c("FATALITIES","INJURIES","TOTAL.CASUALTIES"), variable.name = "HEALTH.EFFECT", value.name = "AMOUNT")
+head(plot.health)
+```
+
+Notice that the table is has been scattered and we need to group the events together.
+```{r,echo=TRUE}
+## Getting the events in the right order
+events <- unique(plot.health$EVENT)
+events
+```
+
+```{r,echo=TRUE}
+## Creating an empty data.table to contain the plot.health data in its right order
+plot.health.arranged <- data.table(EVENT=character(), HEALTH.EFFECT=factor(), AMOUNT=numeric())
+
+for (i in 1:length(events)){
+        row.set <- grep(events[i],plot.health$EVENT, ignore.case = TRUE)
+        plot.health.arranged <- rbind(plot.health.arranged,plot.health[row.set,])
+}
+
+## replacing plot.health dataset with plot.health.arranged
+plot.health <- plot.health.arranged
+
+## Removing plot.health.arranged
+rm("plot.health.arranged") 
+
+head(plot.health)
+```
+
+
+### Question 2
+```{r, echo=TRUE}
+plot.economy <- StormData.Plot %>% group_by(EVENT) %>% summarise(CROP.EXPENSE = sum(CROP.EXPENSE), PROP.EXPENSE = sum(PROP.EXPENSE))
+
+## New column for total economic consequence per event
+plot.economy$TOTAL.EXPENSE <- plot.economy$CROP.EXPENSE + plot.economy$PROP.EXPENSE
+
+## Ordering dataset in decreasing order of "TOTAL.EXPENSE"
+plot.economy <- plot.economy[order(plot.economy$TOTAL.EXPENSE, decreasing = TRUE),]
+plot.economy <- as.data.table(plot.economy)
+plot.economy
+```
+
+Melting plot.economy in order to produce a clean table
+```{r,echo=TRUE}
+plot.economy <- melt(plot.economy, id.vars="EVENT", measure.vars=colnames(plot.economy)[-1], variable.name="EXPENSE", value.name="AMOUNT")
+head(plot.economy)
+```
+
+Just as with the plot.health data set, we need to rearrange the data in order of decreasing total health effects by events
+```{r,echo=TRUE}
+## Getting the events in the right order
+events <- unique(plot.economy$EVENT)
+events
+```
+
+```{r,echo=TRUE}
+## Creating an empty data.table to contain the plot.economy data in its right order
+plot.economy.arranged <- data.table(EVENT=character(), EXPENSE=factor(), AMOUNT=numeric())
+
+for (i in 1:length(events)){
+        row.set <- grep(events[i],plot.economy$EVENT, ignore.case = TRUE)
+        plot.economy.arranged <- rbind(plot.economy.arranged,plot.economy[row.set,])
+}
+
+## replacing plot.economy.arranged with plot.health.arranged
+plot.economy <- plot.economy.arranged
+
+## Removing plot.health.arranged
+rm("plot.economy.arranged") 
+
+head(plot.economy)
+```
+
+
+# Results
+### Question 1
+With respect to population health, which event types are most harmful?
+
+From the barchart below, it can be seen that the top 10 US weather events with the greatest economic consequences are tornadoes, heat related events, wind related events, floods, other events (which is a sum total of all other minor events),lightning, hails, snow related events, and rain related events.
+
+```{r,echo=TRUE}
+ggplot(plot.health, aes(x=reorder(EVENT, -AMOUNT),y=AMOUNT,fill=HEALTH.EFFECT)) + theme_bw() +
+        theme(axis.text.x = element_text(angle=45, hjust=1)) + 
+        geom_bar(stat = "identity", position = "dodge") +
+        ylab("Injuries/Fatalies") + xlab("Events") +
+        labs(title = "Top 10 US Weather Events Most Harmful to Population")
+
+```
+
+### Question 2
+With respect to economic consequences, which event types are most destructive?
+
+From the barchart below, it can be seen that the top 10 US weather events with the greatest economic consequences are floods, other events (which is a sum total of all other minor events),storms, tornadoes, hails, wind related events, rain related events, snow related events, lightning, and heat related events.
+```{r,echo=TRUE}
+ggplot(plot.economy, aes(x=reorder(EVENT, -AMOUNT),y=AMOUNT/(10^9),fill=EXPENSE)) + theme_bw() +
+        theme(axis.text.x = element_text(angle=45, hjust=1)) + 
+        geom_bar(stat = "identity", position = "dodge") +
+        ylab("Expense (in Billion USD)") + xlab("Events") +
+        labs(title = "Top 10 US Weather Events with the Greatest Economic Consequences")
+
+```
+
+
