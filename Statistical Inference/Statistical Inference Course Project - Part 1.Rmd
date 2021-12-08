@@ -1,0 +1,168 @@
+---
+title: "Statistical Inference Course Project - Part 1"
+author: "Orumwese Esosa Cyriaque"
+date: "7/24/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+## PART 1: SIMULATION EXERCISE
+
+
+# Comparison Between the Exponential Distribution in R and the Central Limit Theorem
+
+
+## Overview
+
+In this project I investigated the exponential distribution in R and compared it with the Central Limit Theorem. The exponential distribution can be simulated in R with rexp(n, lambda) where lambda is the rate parameter. The mean of exponential distribution is 1/lambda and the standard deviation is also 1/lambda. lambda = 0.2 for all of the simulations. I investigated the distribution of averages of 40 exponentials and carried out a thousand simulations.
+
+
+## Simulations
+
+### Loading packages
+```{r,echo=TRUE}
+library(ggplot2)
+```
+
+### Creating the sample exponential distribution
+```{r, sample distribution, echo=TRUE}
+# the rate parameter
+lamda <- 0.2
+
+# the number of observations
+n <- 1000
+
+# Generating 1000 random exponential variables with lamda = 0.2 and storing it in 'sample.dist'
+sample.dist <- rexp(n, lamda)
+head(sample.dist,30)
+```
+
+### Plotting histogram of the Sample Exponential Distribution
+```{r, sample plot, echo=TRUE}
+# Plotting a histogram
+sample.plot <- ggplot(NULL,aes(x=sample.dist)) + theme_bw() +
+        geom_histogram(col="black",fill="green")
+sample.plot
+```
+
+### Creating sampling distribution of sample means 
+```{r, sampling distribution, echo=TRUE}
+# Create an empty variable
+CLT.dist <- NULL
+
+# For each simulation, the mean of a new exponential distribution is calculated and appended to "CLT.dist" variable.
+# This is done 1000 times
+for(i in 1:1000){
+        CLT.dist = c(CLT.dist,mean(rexp(40,rate = 0.2)))
+}
+head(CLT.dist,30)
+```
+
+### Plotting histogram of the Sampling Distribution of sample means
+```{r, CLT plot, echo=TRUE}
+# Plotting a histogram
+CLT.plot <- ggplot(NULL, aes(CLT.dist)) + theme_bw() + 
+        geom_histogram(col="black",fill="pink",binwidth = 0.20)
+CLT.plot
+```
+
+
+## Sample Mean versus Theoretical Mean
+
+The sample mean is the mean of the exponential distribution which is;
+```{r, sample mean, echo=TRUE}
+sample.mean <- mean(sample.dist)
+sample.mean
+```
+
+The theoretical mean is expected to be at the center of the distribution of the distribution of the sampling means. The theoretical mean is;
+```{r, theoretical mean, echo=TRUE}
+theoretical.mean <- 1/lamda
+theoretical.mean
+```
+
+```{r}
+CLT.plot <- CLT.plot + geom_vline(xintercept=1/lamda,color="red",size=1.5) +
+        labs(title="Sampling Distribution of the Sample Mean for 1000 Samples of 40 
+        Exponentials with a Rate of 0.2 ", x="Sample Mean", y="Sample Count") +
+        theme(plot.title = element_text(hjust = 0.5))
+CLT.plot
+```
+
+
+From the plot, the theoretical mean, which is at `r I(theoretical.mean)` is shown by the red vertical line. By comparison, it is noticed that the sample mean (`r I(sample.mean)`) is similar to the theoretical mean (`r I(theoretical.mean)`)
+
+
+## Sample Variance versus Theoretical Variance
+
+According to the Central Limit Theorem, the sampling distribution of the sample means should have a standard deviation equivalent to the standard error of the mean (sigma/sqrt(N)).
+
+The sample variance;
+```{r,sample variance,echo=TRUE}
+sample.variance <- var(CLT.dist)
+sample.variance
+```
+
+The theoretical variance;
+```{r,theoretical variance,echo=TRUE}
+theoretical.variance <- ((1/lamda)/sqrt(40))^2
+theoretical.variance
+```
+It can be observed that the sample variance of `r I(sample.variance)` is equivalent to the theoretical variance of `r I(theoretical.variance)`.
+
+
+## Distribution
+
+According to the Central Limit Theorem, the sample distribution of the mean is approximately a normal distribution if the sample size is large enough (30 or more). The sample size of the sampling distribution of the mean is 40, therefore it is expected to be approximately normal.
+
+```{r,echo=TRUE}
+# Creating a data frame of the theoretical distribution data
+CLT.df <- as.data.frame(CLT.dist)
+# changing column name
+colnames(CLT.df) = "x"
+```
+
+Plotting the distribution and comparing it to a standard normal distribution
+```{r,echo=TRUE}
+# The data frame CLT.df will be plotted with using the distribution values as its aesthetic
+g <- ggplot(data = CLT.df, aes(x=CLT.dist))
+
+# adding the histogram function with black borders and a pink fill
+g <- g + geom_histogram(col="black", fill="pink", aes(y=..density..), binwidth=0.20)
+
+# adding the function for plotting the density of a standard function with mean equal to the theoretical mean of the exponential distribution and
+# standard deviation equal to the standard error of the mean.
+g <- g + stat_function(fun=dnorm, args=list(mean=theoretical.mean, sd=sd(CLT.dist)), color="black", size=1.5)
+
+# adding the function for plotting the density of the sample exponential distribution
+g <- g + stat_density(geom="line",color="blue",size=1.5)
+
+# adding the function for labels
+g <- g + labs(x="Sample Mean", y="Density", title="Density of Normalized Exponential Distribution of Sample Means 
+        Compared to the Standard Normal Density") +
+        theme(plot.title = element_text(hjust=0.5)) # positions the plot title at the centre
+g
+```
+
+It is observed that the normalized exponential distribution of the sample means (blue curve) is approximately normal seeing as it is very similar to the normal distribution curve (black curve)
+
+
+## Conclusion
+
+Upon comparison of the exponential distribution with the Central Limit Theorem, it was concluded that the function is approximately normal.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

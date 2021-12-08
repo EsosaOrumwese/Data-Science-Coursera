@@ -1,0 +1,413 @@
+---
+title: "Caret Package ML"
+author: "Orumwese Esosa Cyriaque"
+date: "10/15/2021"
+output: html_document
+---
+
+# Initial Setup - Loading The Package and The Dataset
+
+The goal of this project is to predict which brand of orange juices did the customers buy. The **predictor variables** are the characteristics of both the customers and the product. The **response variable** is `Purchase` which takes either the value `CH`(citrus hill) and `MM`(minute maid). 
+
+[Reference](https://www.machinelearningplus.com/machine-learning/caret-package/)
+
+```{r, import data, echo=TRUE}
+library(caret)
+orange <- read.csv(file="https://raw.githubusercontent.com/selva86/datasets/master/orange_juice_withmissing.csv", sep=",", header=TRUE)
+
+```
+
+```{r, data structure, echo=TRUE}
+str(orange)
+head(orange[, 1:10])
+```
+
+# Data Preparation and Preprocessing
+The first step is to split it into training(80%) and test(20%) data sets using caret’s `createDataPartition()` function. Now to create the training and testing data set.
+
+```{r, train and test data, echo=TRUE}
+set.seed(100)
+
+## Step 1: Get row numbers for the training data
+trainRowNumbers <- createDataPartition(orange$Purchase, p=0.8, list=FALSE)
+
+## Step 2: Create training dataset
+trainData <- orange[trainRowNumbers,]
+
+## Step 3: Create test dataset
+testData <- orange[-trainRowNumbers,]
+
+## Store X and Y for later use
+X = trainData[,-1]
+Y = trainData$Purchase
+```
+
+### Descriptive Statistics
+Before moving to `missing value imputation` and `preprocessing` we need to observe the descriptive statistics of each column in the training data set.
+
+```{r, descriptive stats, echo=TRUE}
+library(skimr)
+skimmed <- skim(trainData)
+skimmed
+```
+
+### Imputing Missing Values
+We will predict the missing values with k-Nearest Neighbors using `caret::preProcess()`:
+
+1. Create a `preprocess` model by setting the `method=knnImpute` for k-Nearest Neighbors and apply it to the training data.
+2. Then use `predict()` on the `preprocess` model by setting the `newdata` argument to the training data.
+
+```{r, impute model, echo=TRUE}
+preProcess_missingdata_model <- preProcess(trainData, method='knnImpute')
+preProcess_missingdata_model
+```
+```{r, impute data, echo=TRUE}
+library(RANN)
+trainData <- predict(preProcess_missingdata_model, newdata=trainData)
+anyNA(trainData)
+```
+
+### One-Hot Encoding
+All categorical variables need to be converted to numeric. What we'll do is to convert the categorical variable with as many binary (1 or 0) variables as there are categories.
+
+```{r, dummyVars, echo=TRUE}
+## Creating the dummy model
+dummies_model <- dummyVars(Purchase~., data=trainData)
+
+## Creating the dummy variables using the model and predict()
+trainData_mat <- predict(dummies_model, newdata=trainData)
+
+## Convert to data frame
+trainData <- data.frame(trainData_mat)
+
+str(trainData)
+## Notice that the Purchase variable isn't there any more.
+```
+
+Here, we had one categorical variable, `Store7` with 2 categories. It was one-hot-encoded to produce two new columns – `Store7No` and `Store7Yes`.
+
+### Preprocessing to Transform the Data.
+With the missing values imputed and the factors one-hot-encoded, our training data set is ready to undergo variable transformation. Many types of preprocessing are available in `caret` package and they include:
+
+* `range`: Normalize values so that it ranges between 0 and 1.
+* `center`: Subtract mean.
+* `scale`: Divide by standard deviation.
+* `Boxcox`: Removes skewness leading to normality. Values must be > 0.
+* `YeoJohnson`: Like `BoxCox` but for negative values.
+* `expoTrans`: Exponential transformation. Works for negative values.
+* `pca`: Replace with principal components.
+* `ica`: Replace with independent components.
+* `spatialSign`: Project the data to a unit circle.
+
+For our problem, we'll normalize all the numeric variables by setting `method=range` in `preProcess()`
+
+```{r, preProcess, echo=TRUE}
+preProcess_range_model <- preProcess(trainData, method="range")
+trainData <- predict(preProcess_range_model, newdata=trainData)
+
+## Append the Y variable
+trainData$Purchase <- Y
+
+apply(trainData[,-19], 2, FUN=function(x){c('min'=min(x), 'max'=max(x))})
+```
+
+All the predictors are now normalized.
+
+
+# Feature Selection using Recursive Feature Elimination
+
+### Visualizing the Importance of Variables
+We will visually examine how the predictors influence the response variable/Y (Purchase). In this problem, the X variables are numeric while the Y variable is categorical. Therefore, we will group the X variable by the categories of Y. A significant mean shift amongst the X's groups is a strong indicator that X will have a significant role to play in predicting Y. Using `caret::featurePlot()`, we'll be able to visualize this shift in the box plots or density plots produced. 
+
+```{r, featurePlot::box, echo=TRUE}
+featurePlot(x=trainData[,1:18], 
+            y=as.factor(trainData$Purchase),
+            plot = "box",
+            strip = strip.custom(par.strip.text = list(cex=0.7)),
+            scales = list(x = list(relation="free"), 
+                          y = list(relation="free"))
+            )
+```
+For a variable to be important, the mean (black dot) and the placement of the blue boxes have to be glaringly different. From the box plots above, we can say that `STORE`, `LoyalCH`, `WeekofPurchase` and `StoreID` are **likely** to be good predictors of Y.
+
+```{r, featurePlot::density, echo=TRUE}
+featurePlot(x=trainData[,1:18],
+            y=as.factor(trainData$Purchase),
+            plot = "density",
+            strip = strip.custom(par.strip.text = list(cex=0.7)),
+            scales = list(x = list(relation="free"),
+                          y = list(relation="free"))
+            )
+```
+
+For a variable to be important, in the case of density curves, the density curves must be significantly different for the two classes in terms of height (kurtosis) and placement (skewness). From the density curves above, we can say that `Store7`, `STORE`, `LoyalCH`, `WeekofPurchase`and `StoreID` are **likely** to be important to predict Y
+
+### Using Recursive Feature Elimination for Feature Selection
+Recursive Feature Elimination (RFE) is a good way to determine the important variables that will be fed to the Machine Learning model. The `rfe()` implements the recursive feature elimination. The `sizes` determines what all model sizes(the number of most important features) the `rfe` should consider. In this case, it iterates models of size 1 to 5, 10, 15 and 18. 
+
+The `rfeControl` parameter receives the output of the `rfeControl()` as values. The call to `rfeControl` is used to set both the type of algorithm and the method of cross validation to be used. In this case, the `method` is "repeatedcv` which implements the k-Fold cross validation repeated 5 times.
+
+
+```{r, RFE, echo=TRUE}
+set.seed(100)
+options(warn=-1)
+
+subsets <- c(1:5, 10, 15, 18)
+
+ctrl <- rfeControl(functions = rfFuncs,
+                   method = "repeatedcv",
+                   repeats = 5,
+                   verbose = FALSE)
+
+lmProfile <- rfe(x=trainData[,1:18], y=as.factor(trainData$Purchase),
+                 sizes = subsets,
+                 rfeControl = ctrl)
+
+lmProfile
+```
+
+Once `rfe()` is run, the output shows the accuracy and kappa (and their standard deviation) for the different model sizes we provided. The final selected model subset size is marked with a `*` in the rightmost `selected` column. From the above output, a model size of 3 with `LoyalCH`, `PriceDiff` and `StoreID` seems to achieve optimal accuracy. 
+ 
+
+# Training and Tuning the Model
+
+This is the stage where you build the machine learning model.
+
+### How to train() the Model and Interprete the Results
+Here are the available models in `caret`
+
+```{r, caret.models, echo=TRUE}
+modelnames <- paste(names(getModelInfo()), collapse=",   ")
+modelnames
+```
+
+Let's train a Multivariate Adaptive Regression Splines (MARS) model by setting `model="earth"`. Let us find out more details about this model, like its hyperparameters and if it can be used for a regression or classification problem, using `modelLookup`.
+
+```{r, modelLookup, echo=TRUE}
+modelLookup("earth")
+```
+
+```{r, as.factor, echo=TRUE}
+## Converting 'Purchase` column to factor. I should have done this at the beginning
+trainData$Purchase <- as.factor(trainData$Purchase)
+```
+
+
+```{r, train.model, echo=TRUE}
+## Set the seed for reproducibility
+set.seed(100)
+
+## Train the model using MARS and predict on the training data itself.
+model_mars = train(Purchase~., data=trainData, method="earth")
+fitted <- predict(model_mars)
+model_mars
+```
+
+The chosen model and its parameters are stated in the last 2 lines of the output above.
+
+### Compute Variable Importance?
+Let's extract variable importances using `varImp()` to understand which variables come out useful.
+
+```{r, varImp, echo=TRUE}
+varimp_mars <- varImp(model_mars)
+plot(varimp_mars, main="Variable Importance with MARS")
+```
+
+As expected, `LoyalCH` is the most important variable followed by `PriceDiff`, `SalePriceMM` and `PriceMM`. **Why is my output different from what the author got????**
+
+### Prepare the Test Data and Predict
+We will pass the preProcess model we created with the trainData in the sequence below
+**Missing Value Imputation -> One-Hot Encoding -> Range Normalization**
+
+```{r, prep.predict.testData, echo=TRUE}
+## Creating new preprocess model to avoid data leak
+#preProcess_missingdata_model_2 <- preProcess(testData, method = "knnImpute")
+
+## Impute missing values
+testData2 <- predict(preProcess_missingdata_model, testData)
+
+## Create One-Hot Encodings
+testData3 <- predict(dummies_model, testData2)
+
+## Standardize the features
+testData4 <- predict(preProcess_range_model, testData3)
+
+## View
+head(testData4[,1:10])
+```
+
+### Predict on testData
+The test dataset is prepared. Let's predict the Y
+
+```{r, predict.testData, echo=TRUE}
+predicted <- predict(model_mars, testData4)
+head(predicted)
+```
+
+### Confusion Matrix
+The confusion matrix is a tabular representation to compare the predictions (data) vs the actuals (reference).
+
+```{r, confusionMatrix, echo=TRUE}
+confusionMatrix(reference = as.factor(testData$Purchase), data = predicted, mode='everything', positive='MM')
+```
+
+The overall accuracy is given to be 80.28%.
+
+
+### Optimizing the Model Using Hyperparameter Tuning
+There are two main ways to do hyperparameter tuning using `train()`:
+
+1. Set the `tuneLength`
+2. Define and set the `tuneGrid`
+
+Caret will automatically determine the values each parameter will take. The `train()` function takes a `trControl` argument that accepts the output of `trainControl()`. 
+
+Inside the `trainControl()` you control how the `train()` will:
+
+* Cross validation `method` to use.
+* How the results should be summarised using the `summaryFunction`.
+
+The cross validation `method` can be amongst:
+
+* *‘boot’*: Bootstrap sampling
+* *‘boot632’*: Bootstrap sampling with 63.2% bias correction applied
+* *‘optimism_boot’*: The optimism bootstrap estimator
+* *‘boot_all’*: All boot methods.
+* *‘cv’*: k-Fold cross validation
+* *‘repeatedcv’*: Repeated k-Fold cross validation
+* *‘oob’*: Out of Bag cross validation
+* *‘LOOCV’*: Leave one out cross validation
+* *‘LGOCV’*: Leave group out cross validation
+
+The `summaryFunction` can be `twoClassSummary` if Y is binary class or `multiClassSummary` if the Y is more than 2 categories. By setting the `classProbs=T` the probability scores are generated instead of directly predicting the class based on a predetermined cutoff of 0.5.
+
+```{r, trainControl, echo=TRUE}
+fitControl <- trainControl(
+        method = 'cv',                        # k-Fold cross validation
+        number = 5,                           # number of folds
+        savePredictions = "final",            # saves predictions for optimal tuning parameter
+        classProbs = T,                       # should class probabilities be returned
+        summaryFunction = twoClassSummary     # results summary function
+)
+```
+
+
+**1. Hyperparameter Tuning using `tuneLength`**
+We will take the `train()` function and additionally set the `tuneLength`, `trControl`, and `metric`. 
+
+```{r, tuneLength, echo=TRUE}
+# Step 1: Tune hyperparameters by setting tuneLength
+set.seed(100)
+model_mars2 = train(Purchase~., data=trainData, method="earth",
+                    tuneLength=5, metric="ROC", trControl=fitControl)
+model_mars2
+
+# Step 2: Predict on testData and Compute the confusion matrix
+predicted2 <- predict(model_mars2, testData4)
+confusionMatrix(reference=as.factor(testData$Purchase), data=predicted2,
+                mode="everything", positive="MM")
+```
+
+**2. Hyperparameter Tuning using `tuneGrid`**
+Alternately, you can set the `tuneGrid` instead of `tuneLength`. 
+
+```{r, tuneGrid, echo=TRUE}
+# Step 1: Define the tuneGrid
+marsGrid <- expand.grid(nprune = c(2,4,6,8,10),
+                        degree = c(1,2,3))
+
+# Step 2: Tune hyperparameters by setting tuneGrid
+set.seed(100)
+model_mars3 = train(Purchase~., data=trainData,
+                    method="earth", metric="ROC",
+                    tuneGrid=marsGrid, trControl=fitControl)
+model_mars3
+
+# Step 3: Predict on testData and Compute the confusion matrix
+predicted3 <- predict(model_mars3, testData4)
+confusionMatrix(reference=as.factor(testData$Purchase), data=predicted3,
+                mode="everything", positive="MM")
+```
+
+### Evaluating Performance of Multiple Machine Learning Algorithms using `resamples()`
+
+**Training Adaboost**
+```{r, model.adaboost, echo=TRUE}
+#set.seed(100)
+
+# train model using Adaboost
+#model_adaboost = train(Purchase~., data=trainData, method="adaboost",
+ #                   tuneLength=2, trControl=fitControl)
+#model_adaboost
+```
+
+**Training Random Forest**
+```{r, model.rf, echo=TRUE}
+set.seed(100)
+
+# train model using rf
+model_rf = train(Purchase~., data=trainData, method="rf",
+                    tuneLength=5, trControl=fitControl)
+model_rf
+```
+
+**Train xgBoost Dart**
+```{r, model.xgbDart, echo=TRUE}
+set.seed(100)
+
+# train model using xgbDart
+model_xgbDart = train(Purchase~., data=trainData, method="xgbDART",
+                    tuneLength=5, trControl=fitControl, verbose=F)
+model_xbgDart
+```
+
+**Train SVM**
+```{r, model.svm, echo=TRUE}
+set.seed(100)
+
+# Train the model using SVM
+model_svmRadial = train(Purchase~., data=trainData, method="svmRadial",
+                    tuneLength=15, trControl=fitControl)
+model_svmRadial
+```
+
+**Using `resample()` to Compare Models**
+```{r, resample, echo=TRUE}
+#models_compare <- resamples(list(ADABOOST=model_adaboost, RF=model_rf,
+                                 XGBDART=model_xgbDart, MARS=model_mars3,
+                                 SVM=model_svmRadial))
+
+# Summary of the models performances
+#summary(models_compare)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

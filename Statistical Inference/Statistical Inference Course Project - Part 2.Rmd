@@ -1,0 +1,158 @@
+---
+title: "Statistical Inference Course Project - Part 2"
+author: "Orumwese Esosa Cyriaque"
+date: "8/2/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+# Exploratory Analysis and Statistical Inference on the ToothGrowth Data in R Datasets Package
+
+
+## Synopsis
+This report aims to analyze the ToothGrowth data in the R datasets package. The aim is compare tooth growth by supplement delivery method and by dose.
+
+
+## Loading the Data
+
+ToothGrowth data is a dataset which measures the effect of Vitamin C on tooth growth in Guinea pigs. It is a data frame with 60 observations on 3 variables;
+
+* len: This is the response and it is the length of the cells responsible for tooth growth in the guinea pigs.
+* supp: The two delivery methods with which the doses were administered. By orange juice (OJ) or by ascorbic acid (VC), a form of vitamin C.
+* dose: Each animal received on of 3 dose levels of vitamin C (0.5, 1 and 2 mg/day).
+
+```{r,load data,echo=TRUE}
+library(datasets)
+library(ggplot2)
+data("ToothGrowth")
+
+str(ToothGrowth)
+```
+Checking for NA values
+```{r,echo=TRUE}
+sum(is.na(ToothGrowth))
+```
+
+
+## Basic Summary Tests
+
+Performing basic summary tests
+```{r,summary(),echo=TRUE}
+summary(ToothGrowth)
+```
+
+```{r,head,echo=TRUE}
+# First 6 rows of the data
+head(ToothGrowth)
+```
+
+Unique Values of Each Variable
+```{r,unique values,echo=TRUE}
+# Getting the unique values of each variable
+unique(ToothGrowth$len)
+```
+```{r,echo=TRUE}
+unique(ToothGrowth$supp)
+```
+```{r,echo=TRUE}
+unique(ToothGrowth$dose)
+```
+Convert dose column to factor class
+```{r,echo=TRUE}
+ToothGrowth$dose <- as.factor(ToothGrowth$dose)
+```
+
+
+## Exploratory Data Analysis
+
+The relationship between the supplement (supp variable) and the tooth length (len) for each dose. This was visualized using the boxplot.
+```{r,len vs supp by dose, echo=TRUE}
+ggplot(ToothGrowth, aes(x=supp, y=len)) +
+        geom_boxplot(aes(fill=supp)) + facet_grid(~dose) +
+        labs(x="Supplement Delivery Method", y="Tooth Length", title="Tooth Length vs Supplement Delivery Method per Dose") +
+        theme(plot.title=element_text(hjust=0.5, face="bold"))
+```
+
+We can see that the tooth length increased generally with increase in dose. The Oranje Juice (OJ) supplement performed better than the Ascorbic Acid (VC) generally but for the 2mg dose, the VC supplement showed a wider range of lengths and also similar median with the OJ supplement.
+
+
+The relationship between tooth length and dosage per supplement delivery. This was visualized using boxplot.
+```{r, len vs dose by supp, echo=TRUE}
+ggplot(ToothGrowth) +
+        geom_boxplot(aes(x=dose, y=len,fill=dose)) + facet_grid(~supp) +
+        labs(x="Dose (mg/day)", y="Tooth Length", title="Tooth Length vs Dose by Supplement Delivery Method") +
+        theme(plot.title=element_text(hjust=0.5, face="bold"))
+```
+
+An increase in tooth length can be seen with increase in dose. The OJ supplement performed better than the VC supplement but for the 2mg dose where the VC supp showed a wider range of tooth growth.
+
+
+## Tooth Growth Comparisons
+
+Hypothesis tests and confidence intervals are used to compare tooth growth by supplement and dose.
+
+### By Supplement
+Hypothesis: 
+
+Suppliment delivery methods have no effect on tooth growth.
+
+* $H_{0}$: Both group have the same mean.
+* $H_{A}$: Means are different.
+
+T-test
+```{r, ttest supp, echo=TRUE}
+supp.test <- t.test(data=ToothGrowth, len~supp)
+supp.test
+```
+
+The test returns a p-value of `r I(round(supp.test$p.value,2))`.
+Therefore since the p-value is greater than 0.05 and the confidence interval of the test contains zero, we can say that supplement delivery method seems to have no impact on Tooth growth based on this test. We fail to reject the null hypothesis.
+
+### By Dose
+Hypothesis:
+
+Higher doses of Vitamin C cause less tooth growth.
+
+* $H_{0}$: Mean of larger dose value is smaller than or equal to smaller dose value.
+* $H_{A}$: Mean of larger dose value is greater than smaller dose value.
+
+T-test
+Running t-tests on different pairs of dose values
+
+```{r, t.test dose, echo=TRUE}
+# Using dose values 0.5 and 1.0
+ToothGrowth_sub <- subset(ToothGrowth, ToothGrowth$dose %in% c(0.5,1.0))
+dose.test <- t.test(data=ToothGrowth_sub, len~dose)
+dose.test
+```
+```{r,echo=TRUE}
+# Using dose values 0.5 and 2.0
+ToothGrowth_sub <- subset(ToothGrowth, ToothGrowth$dose %in% c(0.5,2.0))
+dose.test <- t.test(data=ToothGrowth_sub, len~dose)
+dose.test
+```
+```{r,echo=TRUE}
+# Using dose values 1.0 and 2.0
+ToothGrowth_sub <- subset(ToothGrowth, ToothGrowth$dose %in% c(1.0,2.0))
+dose.test <- t.test(data=ToothGrowth_sub, len~dose)
+dose.test
+```
+
+For all tests, the p-value is zero and the confidence interval does not contain zero.
+Therefore since the p-value is less than the significance level of 0.5 and the confidence interval does not contain 0, we reject the null hypothesis. This means that higher doses of Vitamin C result in greater tooth growth
+
+
+# Assumption and Conclusion
+
+Assuming that:
+
+1. The sample is representative of the population;
+2. The distribution of the sample means follows the Central Limit Theorem.
+
+In reviewing out t-test analysis from above we can conclude that:
+
+1. Supplement delivery method has no effect on tooth growth and,
+2. Increase in dosage of Vitamin C results in increased tooth growth.
+
+

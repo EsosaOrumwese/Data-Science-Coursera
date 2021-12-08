@@ -1,0 +1,11 @@
+name: Publish Document
+title:
+username:
+account: rpubs
+server: rpubs.com
+hostUrl: rpubs.com
+appId: https://api.rpubs.com/api/v1/document/808854/90ca8b76c9b3401fb1d6c95703b40822
+bundleId: https://api.rpubs.com/api/v1/document/808854/90ca8b76c9b3401fb1d6c95703b40822
+url: http://rpubs.com/EsosaOrumwese/808854
+when: 1631612269.05
+lastSyncTime: 1631612269.05

@@ -1,0 +1,176 @@
+---
+title: "The Relationship Between Miles per Gallon and Transmission Type in Automobiles"
+author: "Orumwese Esosa Cyriaque"
+date: "9/9/2021"
+output: html_document
+---
+
+# Synopsis
+This project involves exploring the relationship between miles per gallon (MPG) and transmission in a data set of a collection of cars. Two questions are of interest: Is an automatic or manual transmission better for MPG? and what is the quantifiable MPG difference between automatic and manual transmissions? It was found that the weight of the car (`wt`) is a confounding variable in the relationship between miles per gallon (`mpg`) and transmission (`am`). It was also found that manual transmission cars have, on an average, 1.55 times more mpg than automatic transmission cars.
+
+
+
+# Loading the Data
+
+The *mtcars* (Motor Trend Car Road Tests) is a data set which comprises of fuel consumption and 10 aspects of automobile design and performance for 32 automobiles (1973-1974 models). It has 32 observations on 11 variables.
+
+- `mpg`:        Miles/(US) gallon
+- `cyl`:        Number of cylinders
+- `disp`:       Displacement (cu.in.)
+- `hp`:         Gross horsepower
+- `drat`:       Rear axle ratio
+- `wt`:         Weight (1000 lbs)
+- `qsec`:       1/4 mile time
+- `vs`:         Engine (0 = V-shaped, 1 = straight)
+- `am`:         Transmission (0 = automatic, 1 = manual)
+- `gear`:       Number of forward gears
+- `carb`:       Number of carburetors
+
+```{r, load data, echo=TRUE}
+library(datasets)
+library(ggplot2)
+data(mtcars)
+head(mtcars,11)
+```
+
+
+# Exploratory Data Analysis
+### Basic Summary Tests
+```{r, structure, echo=TRUE}
+str(mtcars)
+```
+
+```{r, summary, echo=TRUE}
+summary(mtcars)
+```
+
+### Unique Values
+```{r,mpg,echo=TRUE}
+unique(mtcars[,1])
+```
+```{r,cyl,echo=TRUE}
+unique(mtcars[,2])
+```
+```{r,disp,echo=TRUE}
+unique(mtcars[,3])
+```
+```{r,hp,echo=TRUE}
+unique(mtcars[,4])
+```
+```{r,drat,echo=TRUE}
+unique(mtcars[,5])
+```
+```{r,wt,echo=TRUE}
+unique(mtcars[,6])
+```
+```{r,qsec,echo=TRUE}
+unique(mtcars[,7])
+```
+```{r,vs,echo=TRUE}
+unique(mtcars[,8])
+```
+```{r,am,echo=TRUE}
+unique(mtcars[,9])
+```
+```{r,gear,echo=TRUE}
+unique(mtcars[,10])
+```
+```{r,carb,echo=TRUE}
+unique(mtcars[,11])
+```
+
+### Converting the Class of Specific Columns to Factors
+```{r, as.factor, echo=TRUE}
+#mtcars$cyl <- factor(mtcars$cyl)
+mtcars$vs <- factor(mtcars$vs)
+mtcars$am <- factor(mtcars$am, labels=c("automatic","manual")) ## making the labels more meaningful
+#mtcars$gear <- factor(mtcars$gear)
+#mtcars$carb <- factor(mtcars$carb)
+```
+
+### Boxplot
+```{r,boxplot,echo=TRUE}
+ggplot(mtcars, aes(x=am, y=mpg, fill=am)) +
+        geom_boxplot() +
+        labs(x="Transmission", y="Miles per gallon", title="Relationship Between MPG and Transmission") +
+        theme(plot.title=element_text(hjust=0.5, face="bold"))
+```
+
+From the plot above, it is expected that the manual cars generally have better mileage than automatic cars. With the aid of Statistical Inference, we will be able to have a clearer picture of the relationship.
+
+
+# Statistical Inference
+We can use the R function t.test to find out whether our hypothesis that manual cars get better gas mileage than automatic cars is statistically significant.
+
+```{r,t.test,echo=TRUE}
+t.test(data=mtcars, mpg~am)
+```
+
+From the test, since the p value is lesser than the significance level of 0.05 and the confidence interval does not contain 0, therefore our hypothesis is significant. We can conclude that the difference in mpg between the manual and automatic transmission is infact significant.
+
+
+# Regression Models
+
+### Linear Regression Model
+We will use `mpg` as the dependent variable and `am` as the independent variable to fit a linear regression model.
+
+```{r,am.model,echo=TRUE}
+am.model <- lm(mpg~am, mtcars)
+summary(am.model)
+```
+
+The R-squared value for this model is only 0.3598. This means that fitting `mpg` on `am` alone only explains about 36% of the variance in `mpg`.
+
+
+### Multivariable Regression Model
+We will run a linear regression model for all variables against `mpg`. This gives us insight into variables with coefficient significance as well as an initial attempt at explaining `mpg`. Additionally, we will also look at the correlation of variables with mpg to help us choose an appropriate model.
+
+#### Full Model
+```{r,full.model,echo=TRUE}
+full.model <- lm(mpg~., mtcars)
+summary(full.model)
+```
+This shows that 86% or more of the variance in the data can be explained by the model but the p values of each variable is more than the 0.05 significance level. Therefore we'll use `cor()` function to find the variables with strong correlations.
+
+```{r,cor(),echo=TRUE}
+data(mtcars) ## Recalling the data because cor() had issues working with the former dataset due to it not being entirely numerical
+cor(mtcars)[1,]
+```
+
+From the above output, it can be seen that `cyl`, `disp`, `hp` and `wt` have a strong correlation with `mpg`. The relationship can further be visualized with a correlation plot and a pairs plot.
+
+```{r,corrpolt,echo=TRUE}
+## Correlation Plot
+library(corrplot)
+corrplot.mixed(cor(mtcars), lower="circle", upper="number")
+```
+```{r,pairs,echo=TRUE}
+## Pairs plot
+pairs(mpg~., data=mtcars)
+```
+
+#### Final Model
+The final model is given as;
+
+```{r,final.model,echo=TRUE}
+final.model <- lm(mpg~am+cyl+disp+hp+wt, data=mtcars)
+summary(final.model)
+```
+The model has an R-squared value 0.8551, a high F statistic and a low p-value. Therefore, the model is a good fit.
+
+
+# Residual Plot and Analysis
+The “Residuals vs Fitted” plot here shows us that the residuals are homoscedastic. We can also see that they are normally distributed using the quantile plot.
+
+```{r,residual.plot,echo=TRUE}
+par(mfrow=c(2,2))
+plot(final.model)
+```
+
+# Conclusion
+From our analysis, we can conclude that the weight of the car (`wt`) is a confounding variable in the relationship between miles per gallon (`mpg`) and transmission (`am`). It was also found that manual transmission cars have, on an average, 1.55 times more mpg than automatic transmission cars.
+
+
+
+
+
