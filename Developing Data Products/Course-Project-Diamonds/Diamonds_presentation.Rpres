@@ -1,0 +1,41 @@
+Developing Data Products - Course Project (Diamonds Dataset)
+========================================================
+author: Esosa Orumwese
+date: 09/12/2021
+autosize: true
+width: 1600
+height: 900
+
+Introduction
+========================================================
+
+Did you know that apart from carat(weights), prices of diamonds are based on factors like cut, color and clarity.
+
+- Cut: Quality of the diamond from best to worst (Ideal, Premium, Very Good, Good and Fair)
+- Color: From best(D) to worst(J)
+- Clarity: Measures how clear the diamond is from best to worst (IF, VVS2, VVS1, VS2, VS1, SI2, SI1, I1).
+
+
+This shiny app will predict diamond price based on your input of these factors
+
+Documentation
+========================================================
+
+Here is a summary of the "diamonds" dataset found in the ggplot2 R package. As you can see, these factors were measured in over 50,000 diamonds.
+
+```{r, echo=FALSE}
+library(ggplot2)
+data(diamonds)
+str(diamonds[,c(1:4,7)])
+```
+
+Summary plot of the diamond data with each of the relevant variables plotted against each other
+========================================================
+```{r, echo=FALSE}
+plot(diamonds[,c(1:4,7)])
+```
+
+Links
+========================================================
+- Shiny app: https://youtube.com
+- source code; https://instagram.com/esosaorumwese

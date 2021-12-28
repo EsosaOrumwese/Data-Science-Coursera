@@ -1,0 +1,44 @@
+Developing Data Products - Course Project (States Dataset)
+========================================================
+author: Esosa Orumwese
+date: 28/12/2021
+autosize: true
+width: 1600
+height: 900
+
+Introduction
+========================================================
+
+- We want to be able to visualize the areas of US states. This was achieved using the US States Facts and Figures data set. 
+
+- The sliders can be used to select the area range to display and check boxes to select different regions (North Central, Northeast, South and West). 
+
+
+
+This shiny app will produce an interactive map of the US showing the states that satisfy the selected criteria.
+
+Documentation
+========================================================
+
+- A data.frame called `states` was created using the vectors from the US Facts and  Figures data set.
+ 
+- A fourth column (`hover`) was added for the interactivity of the map
+
+```{r, echo=TRUE}
+states <- data.frame(state.name, state.area, state.region,
+                      hover=paste0(state.name, ": ", state.area,
+                                   "square miles"))
+states$hover <- as.character(states$hover)
+```
+
+
+Summary of Data set
+========================================================
+```{r, echo=TRUE}
+head(states, 10)
+```
+
+Links
+========================================================
+- Shiny app: https://youtube.com
+- source code; https://instagram.com/esosaorumwese
